@@ -2,38 +2,27 @@ package com.minecart.bigpress.block_entity;
 
 import com.minecart.bigpress.recipe.CompressingRecipe;
 import com.minecart.bigpress.recipe.ModRecipes;
-import com.simibubi.create.AllItems;
-import com.simibubi.create.AllRecipeTypes;
-import com.simibubi.create.AllSoundEvents;
-import com.simibubi.create.api.stress.BlockStressValues;
-import com.simibubi.create.content.fluids.spout.FillingBySpout;
 import com.simibubi.create.content.kinetics.base.KineticBlockEntity;
-import com.simibubi.create.content.kinetics.belt.behaviour.BeltProcessingBehaviour;
-import com.simibubi.create.content.kinetics.belt.behaviour.TransportedItemStackHandlerBehaviour;
 import com.simibubi.create.content.kinetics.belt.transport.TransportedItemStack;
-import com.simibubi.create.content.kinetics.press.PressingRecipe;
-import com.simibubi.create.content.processing.recipe.ProcessingOutput;
 import com.simibubi.create.content.processing.sequenced.SequencedAssemblyRecipe;
-import com.simibubi.create.foundation.advancement.AllAdvancements;
 import com.simibubi.create.foundation.blockEntity.behaviour.BlockEntityBehaviour;
+import com.simibubi.create.foundation.recipe.RecipeApplier;
+import com.simibubi.create.infrastructure.config.AllConfigs;
+import net.createmod.catnip.math.VecHelper;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.NonNullList;
+import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.RecipeHolder;
 import net.minecraft.world.item.crafting.SingleRecipeInput;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
-import net.neoforged.neoforge.fluids.FluidStack;
+import net.minecraft.world.phys.Vec3;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
-import static com.simibubi.create.content.kinetics.belt.behaviour.BeltProcessingBehaviour.ProcessingResult.HOLD;
-import static com.simibubi.create.content.kinetics.belt.behaviour.BeltProcessingBehaviour.ProcessingResult.PASS;
-
-public class BigPressBlockEntity extends KineticBlockEntity {
-    protected BeltProcessingBehaviour beltProcessing;
+public class BigPressBlockEntity extends KineticBlockEntity implements CompressingBehaviour.CompressingBehaviourSpecifics {
+    protected CompressingBehaviour compressingBehaviour;
     public int processingTicks;
 
     public BigPressBlockEntity(BlockEntityType<?> typeIn, BlockPos pos, BlockState state) {
@@ -43,29 +32,14 @@ public class BigPressBlockEntity extends KineticBlockEntity {
     @Override
     public void addBehaviours(List<BlockEntityBehaviour> behaviours) {
         super.addBehaviours(behaviours);
-        beltProcessing = new BeltProcessingBehaviour(this).whenItemEnters(this::onItemReceived)
-                .whileItemHeld(this::whenItemHeld);
-        behaviours.add(beltProcessing);
+        compressingBehaviour = new CompressingBehaviour(this);
+        behaviours.add(compressingBehaviour);
     }
 
     @Override
     public float calculateStressApplied() {
         this.lastStressApplied = 8;
         return 8;
-    }
-
-    protected BeltProcessingBehaviour.ProcessingResult onItemReceived(TransportedItemStack transported,
-                                                                      TransportedItemStackHandlerBehaviour handler) {
-        if (handler.blockEntity.isVirtual())
-            return PASS;
-        if(hasRecipe(transported.stack))
-            return HOLD;
-        return PASS;
-    }
-
-    protected BeltProcessingBehaviour.ProcessingResult whenItemHeld(TransportedItemStack transported,
-                                                                    TransportedItemStackHandlerBehaviour handler) {
-        return HOLD;
     }
 
     public Optional<RecipeHolder<CompressingRecipe>> getRecipe(ItemStack input){
@@ -78,5 +52,88 @@ public class BigPressBlockEntity extends KineticBlockEntity {
 
     public boolean hasRecipe(ItemStack input){
         return getRecipe(input).isPresent();
+    }
+
+    @Override
+    public boolean tryProcessOnBelt(TransportedItemStack input, List<ItemStack> outputList, boolean simulate) {
+        Optional<RecipeHolder<CompressingRecipe>> recipe = getRecipe(input.stack);
+        if (recipe.isEmpty())
+            return false;
+        if (simulate)
+            return true;
+
+        List<ItemStack> outputs = RecipeApplier.applyRecipeOn(
+                getLevel(),
+                canProcessInBulk() ? input.stack : input.stack.copyWithCount(1),
+                recipe.get().value(), true
+        );
+
+        outputList.addAll(outputs);
+        return true;
+    }
+
+    @Override
+    public boolean tryProcessInWorld(ItemEntity itemEntity, boolean simulate) {
+        ItemStack item = itemEntity.getItem();
+        Optional<RecipeHolder<CompressingRecipe>> recipe = getRecipe(item);
+        if (recipe.isEmpty())
+            return false;
+
+        if (simulate)
+            return true;
+
+        compressingBehaviour.particleItems.add(item);
+
+        if (canProcessInBulk() || item.getCount() == 1) {
+            RecipeApplier.applyRecipeOn(itemEntity, recipe.get().value(), true);
+        } else {
+            List<ItemStack> results = RecipeApplier.applyRecipeOn(
+                    getLevel(),
+                    item.copyWithCount(1),
+                    recipe.get().value(), true
+            );
+
+            for (ItemStack result : results) {
+                ItemEntity created = new ItemEntity(getLevel(), itemEntity.getX(), itemEntity.getY(), itemEntity.getZ(), result);
+                created.setDefaultPickUpDelay();
+                created.setDeltaMovement(VecHelper.offsetRandomly(Vec3.ZERO, getLevel().random, .05f));
+                getLevel().addFreshEntity(created);
+            }
+
+            item.shrink(1);
+            itemEntity.setItem(item);
+        }
+        return true;
+    }
+
+    @Override
+    public int getProcessingTime(ItemStack input) {
+        Optional<RecipeHolder<CompressingRecipe>> recipe = getRecipe(input);
+        if(recipe.isEmpty())
+            return 0;
+        return recipe.get().value().getProcessingDuration();
+    }
+
+    @Override
+    public boolean canProcessInBulk() {
+        return AllConfigs.server().recipes.bulkPressing.get();
+    }
+
+    @Override
+    public void onPressingCompleted() {
+    }
+
+    @Override
+    public int getParticleAmount() {
+        return 30;
+    }
+
+    @Override
+    public float getKineticSpeed() {
+        return getSpeed();
+    }
+
+    public CompressingBehaviour getCompressingBehaviour() {
+        return compressingBehaviour;
     }
 }

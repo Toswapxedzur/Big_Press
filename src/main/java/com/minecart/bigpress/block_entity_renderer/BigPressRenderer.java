@@ -1,7 +1,9 @@
 package com.minecart.bigpress.block_entity_renderer;
 
+import com.minecart.bigpress.block.BigPressBlock;
 import com.minecart.bigpress.block.ModPartialModel;
 import com.minecart.bigpress.block_entity.BigPressBlockEntity;
+import com.minecart.bigpress.block_entity.CompressingBehaviour;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.simibubi.create.AllPartialModels;
 import com.simibubi.create.content.kinetics.base.KineticBlockEntityRenderer;
@@ -33,9 +35,16 @@ public class BigPressRenderer extends KineticBlockEntityRenderer<BigPressBlockEn
             return;
 
         BlockState blockState = be.getBlockState();
+        CompressingBehaviour behaviour = be.getCompressingBehaviour();
 
-        SuperByteBuffer cachedHead = CachedBuffers.partialFacing(ModPartialModel.BIG_PRESS_HEAD, blockState, blockState.getValue(BlockStateProperties.HORIZONTAL_FACING));
-        cachedHead.renderInto(ms, buffer.getBuffer(RenderType.SOLID));
+        float renderedHeadOffset = behaviour == null ? 0 : behaviour.getRenderedHeadOffset(partialTicks);
+        float extensionLength = behaviour == null ? 0 : behaviour.getExtensionLength(partialTicks);
+
+        SuperByteBuffer cachedHead = CachedBuffers.partialFacing(ModPartialModel.BIG_PRESS_HEAD, blockState, blockState.getValue(BigPressBlock.HORIZONTAL_FACING));
+
+        cachedHead
+                .translate(0, -renderedHeadOffset * extensionLength, 0) // Apply the animation
+                .renderInto(ms, buffer.getBuffer(RenderType.solid()));
     }
 
     @Override

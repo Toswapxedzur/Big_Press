@@ -1,7 +1,9 @@
 package com.minecart.bigpress.visual;
 
+import com.minecart.bigpress.block.BigPressBlock;
 import com.minecart.bigpress.block.ModPartialModel;
 import com.minecart.bigpress.block_entity.BigPressBlockEntity;
+import com.minecart.bigpress.block_entity.CompressingBehaviour;
 import com.mojang.math.Axis;
 import com.simibubi.create.AllPartialModels;
 import com.simibubi.create.content.kinetics.base.ShaftVisual;
@@ -30,7 +32,7 @@ public class BigPressVisual extends ShaftVisual<BigPressBlockEntity> implements 
                 .createInstance();
 
         Quaternionf q = Axis.YP
-                .rotationDegrees(AngleHelper.horizontalAngle(blockState.getValue(MechanicalPressBlock.HORIZONTAL_FACING)));
+                .rotationDegrees(AngleHelper.horizontalAngle(blockState.getValue(BigPressBlock.HORIZONTAL_FACING)));
 
         pressHead.rotation(q);
 
@@ -43,15 +45,14 @@ public class BigPressVisual extends ShaftVisual<BigPressBlockEntity> implements 
     }
 
     private void transformModels(float pt) {
-        float renderedHeadOffset = getRenderedHeadOffset(pt);
+        CompressingBehaviour behaviour = blockEntity.getCompressingBehaviour();
+
+        float renderedHeadOffset = behaviour == null ? 0 : behaviour.getRenderedHeadOffset(pt);
+        float extensionLength = behaviour == null ? 0 : behaviour.getExtensionLength(pt);
 
         pressHead.position(getVisualPosition())
-                .translatePosition(0, -renderedHeadOffset, 0)
+                .translatePosition(0, -renderedHeadOffset * extensionLength, 0)
                 .setChanged();
-    }
-
-    private float getRenderedHeadOffset(float pt) {
-        return 0.0f;
     }
 
     @Override
