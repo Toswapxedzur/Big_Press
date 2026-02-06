@@ -14,11 +14,11 @@ public class BigPressPonder implements PonderPlugin {
 
     @Override
     public void registerScenes(PonderSceneRegistrationHelper<ResourceLocation> helper) {
-        PonderPlugin.super.registerScenes(helper);
+        ModPonderScenes.register(helper);
     }
 
     @Override
     public void registerTags(PonderTagRegistrationHelper<ResourceLocation> helper) {
-        PonderPlugin.super.registerTags(helper);
+        ModPonderTags.register(helper);
     }
 }

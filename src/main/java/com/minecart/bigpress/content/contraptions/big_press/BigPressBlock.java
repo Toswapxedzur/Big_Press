@@ -16,7 +16,7 @@ import net.minecraft.world.phys.shapes.Shapes;
 import net.minecraft.world.phys.shapes.VoxelShape;
 
 public class BigPressBlock extends HorizontalKineticBlock implements IBE<BigPressBlockEntity> {
-    public static final VoxelShape FULL = Shapes.block();
+    public static final VoxelShape FULL = box(0, 1, 0, 16, 16, 16);
 
     public BigPressBlock(Properties properties) {
         super(properties);
